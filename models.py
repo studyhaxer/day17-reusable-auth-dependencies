@@ -6,6 +6,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
     email = Column(String, unique=True)
+    hashed_password = Column (String)
     # One User -> Many Courses
     courses = relationship("Course", back_populates="owner", cascade="all, delete-orphan")
 class Course(Base):

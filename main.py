@@ -1,65 +1,86 @@
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
-from database import SessionLocal,engine
-from models import User,Course
+from database import engine, get_db
+from models import User, Course
 from typing import List
-from schemas import CourseCreate,CourseOut,UserCreate,UserOut
+from schemas import CourseCreate, CourseOut, UserRegister, UserOut, Token
 import models
 from sqlalchemy.orm import joinedload
-from database import Base
+from fastapi.security import OAuth2PasswordRequestForm
+from auth import create_access_token, verify_password, hash_password, get_current_user
+
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
-@app.post("/users", response_model=UserOut)
-def create_user(user:UserCreate,db: Session = Depends(get_db)):
+@app.post("/register", response_model=UserOut)
+def register_user(user: UserRegister, db: Session = Depends(get_db)):
     uname = user.name.strip()
     umail = user.email.strip()
-    if not uname or not umail:
-        raise HTTPException(status_code=422, detail="Name and Email cannot be empty")
-    new_user = User(name=uname, email=umail)
+    password = user.password
+    if not uname or not umail or not password:
+        raise HTTPException(status_code=422, detail="Name, Email and password cannot be empty")
+    chkmail = db.query(User).filter(User.email == umail).first()
+    if chkmail is not None:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    encr_pass = hash_password(password)
+    new_user = User(name=uname, email=umail, hashed_password=encr_pass)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     return new_user
 
-@app.post("/users/{user_id}/courses", response_model=CourseOut)
-def create_course_user(user_id:int,course:CourseCreate,db: Session = Depends(get_db)):
-    fetchuser = db.query(User).filter(User.id == user_id).first()
-    if not fetchuser:
-        raise HTTPException(status_code=404, detail="User not found")
+
+@app.post("/login", response_model=Token)
+def login(db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()):
+    user = db.query(User).filter(User.email == form_data.username).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    data = {"sub": str(user.id)}
+    token = create_access_token(data)
+    return {"access_token": token, "token_type": "bearer"}
+
+
+@app.get("/me", response_model=UserOut)
+def read_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@app.post("/courses", response_model=CourseOut)
+def create_course_user(course: CourseCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     ncourse = course.title.strip()
     if not ncourse:
         raise HTTPException(status_code=422, detail="Course Title cannot be empty")
-    new_course = Course(title=ncourse,owner_id = user_id)
+    new_course = Course(title=ncourse, owner_id=current_user.id)
     db.add(new_course)
     db.commit()
     db.refresh(new_course)
     return new_course
-    
+
+
 @app.get("/users/{user_id}", response_model=UserOut)
-def get_user_details_byid(user_id:int, db: Session = Depends(get_db)):
+def get_user_details_byid(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     fetchuser = db.query(User).options(joinedload(User.courses)).filter(User.id == user_id).first()
     if not fetchuser:
         raise HTTPException(status_code=404, detail="User not found")
     return fetchuser
 
+
 @app.get("/users", response_model=List[UserOut])
-def get_all_users(db: Session = Depends(get_db)):
+def get_all_users(db: Session = Depends(get_db),current_user: User = Depends(get_current_user)):
     users = db.query(User).all()
     if not users:
         raise HTTPException(status_code=404, detail="Users not found")
     return users
 
+
 @app.delete("/users/{user_id}")
-def delete_user_byid(user_id:int, db: Session = Depends(get_db)):
+def delete_user_byid(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not allowed to delete another user")
     fetchuser = db.query(User).filter(User.id == user_id).first()
     if not fetchuser:
         raise HTTPException(status_code=404, detail="User not found")
