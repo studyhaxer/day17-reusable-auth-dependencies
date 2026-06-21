@@ -7,7 +7,7 @@ class User(Base):
     name = Column(String)
     email = Column(String, unique=True)
     hashed_password = Column (String)
-    # One User -> Many Courses
+    role = Column (String, nullable=False, default="student")
     courses = relationship("Course", back_populates="owner", cascade="all, delete-orphan")
 class Course(Base):
     __tablename__ = "courses"

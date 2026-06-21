@@ -1,3 +1,4 @@
+import os
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, status
@@ -6,11 +7,17 @@ from sqlalchemy.orm import Session
 from models import User
 from database import get_db
 from passlib.context import CryptContext
+from Exceptions import ForbiddenException
 
-# Generated once with: python -c "import secrets; print(secrets.token_hex(32))"
-# Keep this fixed across restarts, or tokens issued before a restart will be invalid.
-# For production, load this from an environment variable instead of hardcoding it.
-SECRET_KEY = "40e14aa7f9e6aa2f05c04879b34998884fdaa49f2ec956d9eae0ae11a77065a8"
+ENV = os.getenv("ENV", "development")
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+
+if not SECRET_KEY:
+    if ENV == "production":
+        raise RuntimeError("SECRET_KEY is missing in production environment")
+    else:
+        SECRET_KEY = "justatemporarysecretkey"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
@@ -56,3 +63,15 @@ def hash_password(plain_password):
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
+
+def require_any_role(*roles):
+    
+    def role_checker(current_user = Depends(get_current_user)):
+        allowed_roles = {r.lower() for r in roles}
+        if current_user.role.lower() not in allowed_roles:
+            raise ForbiddenException("do not have Permission  ")
+
+        return current_user
+
+    return role_checker
+

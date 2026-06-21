@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List,Optional
+from typing import List,Optional,Literal
 class CourseOut(BaseModel):
     id: int
     title: str
@@ -11,6 +11,7 @@ class UserRegister(BaseModel):
         name: str
         email: str
         password: str
+        role: Literal["student", "teacher"] = "student"
 class UserOut(BaseModel):
     id: int
     name: str
