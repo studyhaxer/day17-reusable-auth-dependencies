@@ -51,8 +51,13 @@ def read_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+@app.get("/dashboard",response_model=UserOut)
+def supervisory_dashboard(current_user: User = Depends(require_any_role("teacher","admin"))):
+    return current_user
+
+
 @app.post("/courses", response_model=CourseOut)
-def create_course_user(course: CourseCreate, db: Session = Depends(get_db), current_user: User = Depends(require_any_role("teacher"))):
+def create_course(course: CourseCreate, db: Session = Depends(get_db), current_user: User = Depends(require_any_role("teacher"))):
     ncourse = course.title.strip()
     if not ncourse:
         raise HTTPException(status_code=422, detail="Course Title cannot be empty")
@@ -65,6 +70,8 @@ def create_course_user(course: CourseCreate, db: Session = Depends(get_db), curr
 
 @app.get("/users/{user_id}", response_model=UserOut)
 def get_user_details_byid(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.id != user_id and current_user.role.lower() != "teacher":
+        raise ForbiddenException("do not have Permission")
     fetchuser = db.query(User).options(joinedload(User.courses)).filter(User.id == user_id).first()
     if not fetchuser:
         raise HTTPException(status_code=404, detail="User not found")
@@ -72,7 +79,7 @@ def get_user_details_byid(user_id: int, db: Session = Depends(get_db), current_u
 
 
 @app.get("/users", response_model=List[UserOut])
-def get_all_users(db: Session = Depends(get_db),current_user: User = Depends(get_current_user),pagination: dict=Depends(pagination_params)):
+def get_all_users(db: Session = Depends(get_db),current_user: User = Depends(require_any_role("teacher", "admin")),pagination: dict=Depends(pagination_params)):
     users= db.query(User).offset(pagination["offset"]).limit(pagination["limit"]).all()
     return users
 

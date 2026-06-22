@@ -53,6 +53,17 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
     return user
 
+def require_any_role(*roles):
+    
+    def role_checker(current_user: User = Depends(get_current_user)):
+        allowed_roles = {r.lower() for r in roles}
+        if current_user.role.lower() not in allowed_roles:
+            raise ForbiddenException("do not have Permission  ")
+
+        return current_user
+
+    return role_checker
+
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -63,15 +74,4 @@ def hash_password(plain_password):
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
-
-def require_any_role(*roles):
-    
-    def role_checker(current_user = Depends(get_current_user)):
-        allowed_roles = {r.lower() for r in roles}
-        if current_user.role.lower() not in allowed_roles:
-            raise ForbiddenException("do not have Permission  ")
-
-        return current_user
-
-    return role_checker
 

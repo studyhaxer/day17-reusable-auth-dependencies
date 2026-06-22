@@ -11,7 +11,7 @@ class UserRegister(BaseModel):
         name: str
         email: str
         password: str
-        role: Literal["student", "teacher"] = "student"
+        role: Literal["student", "teacher", "admin"] = "student"
 class UserOut(BaseModel):
     id: int
     name: str
